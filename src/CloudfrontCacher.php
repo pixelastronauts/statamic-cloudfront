@@ -1,6 +1,6 @@
 <?php
 
-namespace Daynnnnn\Statamic\Cloudfront;
+namespace PixelAstronauts\Statamic\Cloudfront;
 
 use Illuminate\Cache\Repository;
 use Illuminate\Http\Request;
@@ -9,28 +9,16 @@ use Statamic\Facades\Blink;
 
 class CloudfrontCacher extends AbstractCacher
 {
-    /**
-     * @var Writer
-     */
     private $cloudfront;
+    protected $cache;
 
-    /**
-     * @param Writer $writer
-     * @param Repository $cache
-     * @param array $config
-     */
-    public function __construct(Repository $cache, $config)
+    public function __construct(Repository $cache, array $config)
     {
         parent::__construct($cache, $config);
         $this->cloudfront = new Cloudfront($config);
+        $this->cache = $cache;
     }
 
-    /**
-     * Cache a page.
-     *
-     * @param \Illuminate\Http\Request $request     Request associated with the page to be cached
-     * @param string                   $content     The response content to be cached
-     */
     public function cachePage(Request $request, $content)
     {
         $url = $this->getUrl($request);
@@ -39,63 +27,65 @@ class CloudfrontCacher extends AbstractCacher
             return;
         }
 
-        Blink::put('statamic-cloudfront', 'max-age='.$this->config('expiry', '2592000').', public');
+        // Normalize the content (handles Response objects)
+        $content = $this->normalizeContent($content);
 
-        $this->cacheUrl($this->makeHash($url), $url);
+        // Set cache headers via Blink
+        Blink::put('statamic-cloudfront', 'max-age=' . $this->config('expiry', '2592000') . ', public');
+
+        // Store in local cache
+        $key = $this->makeHash($url);
+        $this->cache->put(
+            $this->normalizeKey($key),
+            $content,
+            $this->config('expiry', 2592000)
+        );
+
+        // Store URL mapping
+        $this->cacheUrl($key, $url);
     }
 
-    /**
-     * @param \Illuminate\Http\Request $request
-     * @return string
-     */
-    public function getCachedPage(Request $request)
+    public function getCachedPage(Request $request): ?string
     {
-        return null;
+        $url = $this->getUrl($request);
+        $key = $this->makeHash($url);
+
+        return $this->cache->get($this->normalizeKey($key));
     }
 
-    /**
-     * Flush out the entire static cache.
-     *
-     * @return void
-     */
-    public function flush()
+    public function flush(): void
     {
+        // Invalidate CloudFront cache
         $this->cloudfront->flush();
+
+        // Clear local cache
+        $this->getUrls()->each(function ($url, $key) {
+            $this->cache->forget($this->normalizeKey($key));
+        });
+
+        // Clear URL mappings
         $this->flushUrls();
     }
 
-    /**
-     * Invalidate a URL.
-     *
-     * @param string $url
-     * @return void
-     */
-    public function invalidateUrl($urls)
+    public function invalidateUrl($urls): void
     {
         $urls = is_string($urls) ? [$urls] : $urls;
 
+        // Invalidate in CloudFront
         $this->cloudfront->delete($urls);
 
         foreach ($urls as $url) {
-            if (! $key = $this->getUrls()->flip()->get($url)) {
-                // URL doesn't exist, nothing to invalidate.
-                return;
+            $key = $this->getUrls()->flip()->get($url);
+
+            if (!$key) {
+                continue;
             }
 
-            $this->forgetUrl($key);
-        }
-    }
+            // Clear from local cache
+            $this->cache->forget($this->normalizeKey($key));
 
-    /**
-     * Invalidate multiple URLs.
-     *
-     * @param array $urls
-     * @return void
-     */
-    public function invalidateUrls($urls)
-    {
-        if ($urls !== null) {
-            $this->invalidateUrl($urls);
+            // Remove URL mapping
+            $this->forgetUrl($key);
         }
     }
 }

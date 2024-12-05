@@ -1,6 +1,6 @@
 <?php
 
-namespace Daynnnnn\Statamic\Cloudfront\Middleware;
+namespace PixelAstronauts\Statamic\Cloudfront\Middleware;
 
 use Closure;
 use Statamic\Facades\Blink;
@@ -17,9 +17,9 @@ class CacheControlHeader
     public function handle($request, Closure $next)
     {
         $response = $next($request);
-    
+
         if ($header = Blink::get('statamic-cloudfront')) {
-            return $response->header('Cache-Control',$header);
+            return $response->header('Cache-Control', $header);
         }
 
         return $response;

@@ -1,6 +1,6 @@
 <?php
 
-namespace Daynnnnn\Statamic\Cloudfront;
+namespace PixelAstronauts\Statamic\Cloudfront;
 
 use Aws\CloudFront\CloudFrontClient;
 use Illuminate\Support\Arr;
@@ -11,14 +11,15 @@ class Cloudfront
     private $cloudfront;
     private $config;
 
-    public function __construct($config) {
+    public function __construct($config)
+    {
         $this->config = $config;
 
         if (! empty($this->config['key']) && ! empty($this->config['secret'])) {
             $credentials = Arr::only($this->config, ['key', 'secret', 'token']);
         }
 
-        $this->cloudfront = new CloudfrontClient([
+        $this->cloudfront = new CloudFrontClient([
             'version'     => '2020-05-31',
             'region'      => $config['region'],
             'credentials' => $credentials ?? false,
@@ -34,7 +35,7 @@ class Cloudfront
     public function delete($urls)
     {
         $this->cloudfront->createInvalidation([
-            'DistributionId' => $this->config['distribution'], 
+            'DistributionId' => $this->config['distribution'],
             'InvalidationBatch' => [
                 'CallerReference' => Str::random(16),
                 'Paths' => [
@@ -54,7 +55,7 @@ class Cloudfront
     public function flush()
     {
         $this->cloudfront->createInvalidation([
-            'DistributionId' => $this->config['distribution'], 
+            'DistributionId' => $this->config['distribution'],
             'InvalidationBatch' => [
                 'CallerReference' => Str::random(16),
                 'Paths' => [
