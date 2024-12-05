@@ -47,10 +47,7 @@ class CloudfrontCacher extends AbstractCacher
 
     public function getCachedPage(Request $request): ?string
     {
-        $url = $this->getUrl($request);
-        $key = $this->makeHash($url);
-
-        return $this->cache->get($this->normalizeKey($key));
+        return null;
     }
 
     public function flush(): void
